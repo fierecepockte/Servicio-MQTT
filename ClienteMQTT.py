@@ -7,7 +7,7 @@ topic2 = "casa/piso1/puertas"
 
 def on_connect(client, userdata, flags, rc):
     print("Conectado con el código de resultado: " + str(rc))
-    ventanas = "open"
+    ventanas = "no closed"
     client.publish(topic, str(ventanas))
     puertas = "closed"
     client.publish(topic2, str(puertas))
