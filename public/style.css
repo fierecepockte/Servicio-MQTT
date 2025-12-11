@@ -1,0 +1,19 @@
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #1a1a2e; color: white; text-align: center; padding: 20px; }
+.container { max-width: 600px; margin: 0 auto; }
+.card { background-color: #16213e; border-radius: 15px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+.display-text { font-size: 2em; font-weight: bold; margin: 15px 0; color: #0f3460; background: #e94560; padding: 10px; border-radius: 5px; color: white;}
+.btn { border: none; padding: 15px 30px; font-size: 1em; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.2s; }
+.btn-primary { background-color: #4CAF50; }
+.btn-secondary { background-color: #555; }
+.btn-danger { background-color: #e94560; }
+.btn:hover { opacity: 0.8; }
+.btn-group { display: flex; gap: 10px; }
+
+/* Estados */
+.alert-mode { border: 2px solid red; animation: parpadeo 1s infinite; }
+@keyframes parpadeo { 0% {box-shadow: 0 0 10px red;} 50% {box-shadow: 0 0 30px red;} 100% {box-shadow: 0 0 10px red;} }
+
+.status-dot { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 0.8em; margin-bottom: 20px; }
+.connected { background-color: #4CAF50; color: white; }
+.disconnected { background-color: #ff4444; color: white; }
+.monitor { text-align: left; background: #0f3460; padding: 15px; border-radius: 10px; }

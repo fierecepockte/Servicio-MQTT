@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Smart Home</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+
+    <div class="container">
+        <h1>🏠 Panel de Seguridad</h1>
+        <div id="status-connection" class="status-dot disconnected">Desconectado</div>
+
+        <div class="card" id="card-alarma">
+            <h2>🚨 ALARMA</h2>
+            <div id="estado-alarma" class="display-text">OFF</div>
+            <button onclick="apagarAlarma()" class="btn btn-danger">APAGAR ALARMA</button>
+        </div>
+
+        <div class="card">
+            <h2>🛡️ Modo Seguridad</h2>
+            <div id="estado-seguridad" class="display-text">DESACTIVADO</div>
+            <div class="btn-group">
+                <button onclick="setSeguridad('ACTIVAR')" class="btn btn-primary">Activar</button>
+                <button onclick="setSeguridad('DESACTIVAR')" class="btn btn-secondary">Desactivar</button>
+            </div>
+        </div>
+
+        <div class="monitor">
+            <h3>Estado de Sensores (Solo Lectura)</h3>
+            <p>🚪 Puerta: <span id="val-puerta">-</span></p>
+            <p>🪟 Ventana: <span id="val-ventana">-</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Determinar protocolo automáticamente (wss si es https, ws si es http)
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const host = `${protocol}://${window.location.host}`;
+
+        console.log("Conectando a:", host);
+        const client = mqtt.connect(host);
+
+        client.on('connect', () => {
+            document.getElementById('status-connection').className = 'status-dot connected';
+            document.getElementById('status-connection').innerText = 'Conectado';
+            
+            // Suscribirse a todo lo relevante
+            client.subscribe('sistema/estado/#');
+            client.subscribe('casa/#');
+        });
+
+        client.on('message', (topic, message) => {
+            const msg = message.toString();
+            
+            if (topic === 'sistema/estado/alarma') {
+                const el = document.getElementById('estado-alarma');
+                el.innerText = msg;
+                if(msg === 'ON') {
+                    document.getElementById('card-alarma').classList.add('alert-mode');
+                } else {
+                    document.getElementById('card-alarma').classList.remove('alert-mode');
+                }
+            }
+            else if (topic === 'sistema/estado/seguridad') {
+                document.getElementById('estado-seguridad').innerText = msg;
+            }
+            else if (topic === 'casa/puertas') {
+                document.getElementById('val-puerta').innerText = msg;
+            }
+            else if (topic === 'casa/ventanas') {
+                document.getElementById('val-ventana').innerText = msg;
+            }
+        });
+
+        // Funciones de botones
+        function setSeguridad(accion) {
+            client.publish('sistema/control/seguridad', accion);
+        }
+
+        function apagarAlarma() {
+            client.publish('sistema/control/alarma', 'APAGAR');
+        }
+    </script>
+</body>
+</html>
