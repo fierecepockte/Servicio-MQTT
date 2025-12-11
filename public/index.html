@@ -6,11 +6,27 @@
     <title>Panel de Control - Smart Home</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        /* Agregamos estilos para el log de depuración */
+        .debug-log {
+            background: #000;
+            color: #0f0;
+            font-family: monospace;
+            padding: 10px;
+            margin-top: 20px;
+            border-radius: 5px;
+            height: 150px;
+            overflow-y: scroll;
+            text-align: left;
+            font-size: 0.8rem;
+        }
+    </style>
 </head>
 <body>
 
     <div class="container">
         <h1>🏠 Panel de Seguridad</h1>
+        
         <div id="status-connection" class="status-dot disconnected">Desconectado</div>
 
         <div class="card" id="card-alarma">
@@ -29,31 +45,46 @@
         </div>
 
         <div class="monitor">
-            <h3>Estado de Sensores (Solo Lectura)</h3>
+            <h3>Estado de Sensores</h3>
             <p>🚪 Puerta: <span id="val-puerta">-</span></p>
             <p>🪟 Ventana: <span id="val-ventana">-</span></p>
+        </div>
+
+        <div class="debug-log" id="console-log">
+            Iniciando sistema...<br>
         </div>
     </div>
 
     <script>
-        // Determinar protocolo automáticamente (wss si es https, ws si es http)
+        // Función para escribir en el log de la pantalla
+        function log(msg) {
+            const box = document.getElementById('console-log');
+            const time = new Date().toLocaleTimeString();
+            box.innerHTML = `[${time}] ${msg}<br>` + box.innerHTML;
+        }
+
+        // Determinar protocolo (wss en render, ws en local)
         const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const host = `${protocol}://${window.location.host}`;
 
-        console.log("Conectando a:", host);
+        log(`Intentando conectar a: ${host}`);
+
         const client = mqtt.connect(host);
 
         client.on('connect', () => {
+            log("✅ ¡Conectado al Servidor!");
             document.getElementById('status-connection').className = 'status-dot connected';
             document.getElementById('status-connection').innerText = 'Conectado';
             
-            // Suscribirse a todo lo relevante
+            // Nos suscribimos para escuchar las respuestas del servidor
             client.subscribe('sistema/estado/#');
             client.subscribe('casa/#');
+            log("Suscrito a los canales de estado.");
         });
 
         client.on('message', (topic, message) => {
             const msg = message.toString();
+            log(`📩 Recibido [${topic}]: ${msg}`);
             
             if (topic === 'sistema/estado/alarma') {
                 const el = document.getElementById('estado-alarma');
@@ -75,12 +106,33 @@
             }
         });
 
+        client.on('error', (err) => {
+            log("❌ Error de conexión: " + err);
+            console.error(err);
+        });
+
+        client.on('close', () => {
+            log("⚠️ Conexión perdida");
+            document.getElementById('status-connection').className = 'status-dot disconnected';
+            document.getElementById('status-connection').innerText = 'Desconectado';
+        });
+
         // Funciones de botones
         function setSeguridad(accion) {
+            if (!client.connected) {
+                log("❌ No se puede enviar: No estás conectado.");
+                return;
+            }
+            log(`📤 Enviando orden: Seguridad -> ${accion}`);
             client.publish('sistema/control/seguridad', accion);
         }
 
         function apagarAlarma() {
+            if (!client.connected) {
+                log("❌ No se puede enviar: No estás conectado.");
+                return;
+            }
+            log(`📤 Enviando orden: APAGAR ALARMA`);
             client.publish('sistema/control/alarma', 'APAGAR');
         }
     </script>
