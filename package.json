@@ -1,0 +1,15 @@
+{
+  "name": "sistema-mqtt-js",
+  "version": "1.0.0",
+  "description": "Servidor y Cliente MQTT Full JS",
+  "main": "broker.js",
+  "scripts": {
+    "broker": "node broker.js",
+    "cerebro": "node cerebro.js"
+  },
+  "dependencies": {
+    "aedes": "^0.50.0",
+    "mqtt": "^5.0.0",
+    "websocket-stream": "^5.5.2"
+  }
+}
