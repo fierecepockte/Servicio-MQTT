@@ -15,7 +15,7 @@ const httpServer = http.createServer(app);
 ws.createServer({ server: httpServer }, aedes.handle);
 
 // --- VARIABLES DE ESTADO ---
-let modoSeguridad = false;
+let modoSeguridad = true;
 let estadoAlarma = false;
 
 // --- PUENTE HTTP PARA EL ESP32 (¡LA SOLUCIÓN!) ---
