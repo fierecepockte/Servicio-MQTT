@@ -4,26 +4,27 @@ const ws = require('websocket-stream');
 const aedes = require('aedes')();
 const app = express();
 
-// Configuración de Middlewares
-app.use(express.json());
-app.use(express.text({ type: '*/*' })); // Acepta texto de cualquier tipo para mayor compatibilidad
+// --- CONFIGURACIÓN CLAVE PARA QUE EL ESP32 NO FALLE ---
+// Esto obliga al servidor a leer SIEMPRE el cuerpo del mensaje como texto.
+// type: '*/*' atrapa cualquier cosa que mande el ESP32.
+app.use(express.text({ type: '*/*' })); 
 app.use(express.static('public'));
 
 const port = process.env.PORT || 8888;
 const httpServer = http.createServer(app);
 
-// Crear el servidor WebSocket para MQTT (usado por la web)
+// Servidor MQTT sobre WebSocket (para tu web)
 ws.createServer({ server: httpServer }, aedes.handle);
 
 // --- VARIABLES DE ESTADO ---
 let modoSeguridad = false;
 let estadoAlarma = false;
 
-// --- UTILIDAD: Publicar en MQTT ---
+// --- FUNCIÓN PARA PUBLICAR EN MQTT ---
 function publicarEstado(topic, payload) {
     const mensaje = {
         topic: topic,
-        payload: Buffer.from(payload), // Aedes prefiere buffers
+        payload: Buffer.from(payload),
         qos: 0,
         retain: true
     };
@@ -32,61 +33,87 @@ function publicarEstado(topic, payload) {
     });
 }
 
-// --- ENDPOINTS PARA EL ESP32 (Vía HTTP) ---
+// ======================================================
+//             RUTAS API (COMUNICACIÓN CON ESP32)
+// ======================================================
 
-// 1. El ESP32 consulta si debe sonar
+// 1. EL ESP32 PREGUNTA: ¿Debo sonar la alarma?
 app.get('/api/alarma', (req, res) => {
+    res.set('Content-Type', 'text/plain');
     res.send(estadoAlarma ? 'ON' : 'OFF');
 });
 
-// 2. Manejo de Puerta y Ventana (Simplificado en una ruta dinámica o separadas)
+// 2. RUTA MÁGICA: Sirve para PUERTA y VENTANA al mismo tiempo
+// El ESP32 manda a: /api/puerta  -> dispositivo = "puerta"
+// El ESP32 manda a: /api/ventana -> dispositivo = "ventana"
 app.post('/api/:dispositivo', (req, res) => {
-    const dispositivo = req.params.dispositivo; // 'puerta' o 'ventana'
-    const estado = req.body.toString().trim().toUpperCase();
     
-    console.log(`Recibido HTTP: ${dispositivo} -> ${estado}`);
+    // Capturamos el nombre (puerta o ventana)
+    const dispositivo = req.params.dispositivo.toLowerCase();
+    
+    // Capturamos el estado y limpiamos basura (espacios, comillas, etc)
+    let estado = req.body;
+    if (typeof estado !== 'string') {
+        estado = JSON.stringify(estado);
+    }
+    estado = estado.replace(/"/g, '').trim().toUpperCase(); // Deja solo "ABIERTA" o "CERRADA"
 
+    // LOG PARA VERIFICAR QUE LLEGA EL DATO
+    console.log(`[RECIBIDO] Dispositivo: ${dispositivo} | Estado: ${estado}`);
+
+    // Validamos que sea uno de los tuyos
     if (dispositivo === 'puerta' || dispositivo === 'ventana') {
-        const topic = `casa/${dispositivo}s`; // casa/puertas o casa/ventanas
-        publicarEstado(topic, estado);
+        
+        // Creamos el topic automáticamente añadiendo una "s" al final
+        // puerta -> casa/puertas
+        // ventana -> casa/ventanas
+        const topic = `casa/${dispositivo}s`;
 
-        // Lógica de Alarma
+        // 1. PUBLICAR A LA WEB
+        publicarEstado(topic, estado);
+        console.log(`   -> Publicado en topic: ${topic}`);
+
+        // 2. LÓGICA DE SEGURIDAD
         if (modoSeguridad && estado === 'ABIERTA') {
             estadoAlarma = true;
             publicarEstado('sistema/estado/alarma', 'ON');
-            console.log(`!!! ALARMA DISPARADA POR ${dispositivo.toUpperCase()} !!!`);
+            console.log(`   !!! ALARMA ACTIVADA POR ${dispositivo.toUpperCase()} !!!`);
         }
+    } else {
+        console.log(`   [?] Dispositivo desconocido: ${dispositivo}`);
     }
 
     res.send('ok');
 });
 
-// --- LÓGICA MQTT (Para la Web y ESP32 si usa MQTT) ---
+// ======================================================
+//             LÓGICA MQTT (COMUNICACIÓN CON WEB)
+// ======================================================
 
-// Escuchar todo lo que se publica en el broker
 aedes.on('publish', function (packet, client) {
-    if (client) { // Solo si el mensaje viene de un cliente (no del servidor interno)
+    if (client) { // Solo mensajes que vienen de clientes externos (la web)
         const topic = packet.topic;
-        const mensaje = packet.payload.toString().trim().toUpperCase();
+        const mensaje = packet.payload.toString().trim();
 
-        console.log(`MQTT In: [${topic}] -> ${mensaje}`);
-
-        // Control de Seguridad
+        // Activar/Desactivar Seguridad
         if (topic === 'sistema/control/seguridad') {
             modoSeguridad = (mensaje === 'ACTIVAR');
             publicarEstado('sistema/estado/seguridad', modoSeguridad ? 'ACTIVADO' : 'DESACTIVADO');
+            console.log(`[SISTEMA] Modo Seguridad: ${modoSeguridad}`);
         }
 
-        // Control de Alarma
+        // Apagar Alarma Manualmente
         if (topic === 'sistema/control/alarma' && mensaje === 'APAGAR') {
             estadoAlarma = false;
             publicarEstado('sistema/estado/alarma', 'OFF');
+            console.log(`[SISTEMA] Alarma apagada manualmente`);
         }
     }
 });
 
 httpServer.listen(port, function () {
-    console.log('--- SERVIDOR INICIADO ---');
-    console.log(`Puerto: ${port}`);
-    console.log(`Rutas HTTP listas: /api/puerta y /api/ventana`);
+    console.log('------------------------------------------------');
+    console.log('   SERVIDOR LISTO - PUERTO ' + port);
+    console.log('   Rutas activas: /api/puerta y /api/ventana');
+    console.log('------------------------------------------------');
 });
